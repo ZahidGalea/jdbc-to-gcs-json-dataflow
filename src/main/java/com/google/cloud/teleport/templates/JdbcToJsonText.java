@@ -21,18 +21,19 @@ import com.google.cloud.teleport.templates.common.JdbcConverters;
 import com.google.cloud.teleport.util.KMSEncryptedNestedValueProvider;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.extensions.jackson.AsJsons;
+import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.TextIO;
+import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
-import org.apache.beam.sdk.transforms.MapElements;
-import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.PCollection;
 
 /**
  * A template that copies data from a relational database using JDBC to an existing GCS Bucket.
  */
-public class JdbcToGcs {
+public class JdbcToJsonText {
 
     private static ValueProvider<String> maybeDecrypt(
             ValueProvider<String> unencryptedValue, ValueProvider<String> kmsKey) {
@@ -42,7 +43,7 @@ public class JdbcToGcs {
     /**
      * Main entry point for executing the pipeline. This will run the pipeline asynchronously. If
      * blocking execution is required, use the {@link
-     * JdbcToGcs#run(JdbcConverters.JdbcToGcsOptions)} method to start the pipeline and
+     * JdbcToJsonText#run(JdbcConverters.JdbcToGcsOptions)} method to start the pipeline and
      * invoke {@code result.waitUntilFinish()} on the {@link PipelineResult}
      *
      * @param args The command-line arguments to the pipeline.
@@ -67,6 +68,9 @@ public class JdbcToGcs {
     private static PipelineResult run(JdbcConverters.JdbcToGcsOptions options) {
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
+
+
+        ResourceId resource = FileSystems.matchNewResource(options.getTempLocation(), true);
 
         /*
          * Steps: 1) Read records via JDBC and convert to TableRow via RowMapper
@@ -96,16 +100,14 @@ public class JdbcToGcs {
                                 .withRowMapper(JdbcConverters.getResultSetToTableRow()));
 
 
-        PCollection<String> tableString = tableRows.apply("Convert to String", MapElements.via(
-                new SimpleFunction<TableRow, String>() {
+        PCollection<String> tableString = tableRows.apply("JSON Transform", AsJsons.of(TableRow.class));;
 
-                    @Override
-                    public String apply(TableRow row) {
-                        return row.toString();
-                    }
-                }));
-
-        tableString.apply("Write to Storage", TextIO.write().withDelimiter(new char[]{'|'}).to(options.getOutputBucketPath().toString() + Runtime.getRuntime() + options.getOutputFileName())
+        tableString.apply("Write to Storage",
+                TextIO.write()
+                        .withDelimiter(new char[]{'\n'})
+                        .withoutSharding()
+                        .withTempDirectory(resource.getCurrentDirectory())
+                        .to(options.getOutputPath())
         );
 
 

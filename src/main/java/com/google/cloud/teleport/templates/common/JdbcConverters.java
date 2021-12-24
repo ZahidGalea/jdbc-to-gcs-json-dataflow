@@ -21,6 +21,8 @@ import java.sql.ResultSetMetaData;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
+
+import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.io.jdbc.JdbcIO;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -134,16 +136,12 @@ public class JdbcConverters {
 
     void setQuery(ValueProvider<String> query);
 
+    void setOutputPath(ValueProvider<String> outputPath);
+
     @Description(
-            "BigQuery Table spec to write the output to"
+            "GCS Path where the result will be or filesystem"
                     + "for example: gs://bucket/path/")
-    ValueProvider<String> getOutputBucketPath();
-
-    @Description(
-            "BigQuery Table spec to write the output to"
-                    + "for example: filename.csv")
-    ValueProvider<String> getOutputFileName();
-
+    ValueProvider<String> getOutputPath();
 
     @Description(
             "KMS Encryption Key should be in the format projects/{gcp_project}/locations/{key_region}/keyRings/{key_ring}/cryptoKeys/{kms_key_name}")
